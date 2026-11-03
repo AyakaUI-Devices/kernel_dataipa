@@ -1288,6 +1288,8 @@ EXPORT_SYMBOL(gsi_complete_clk_grant);
 
 int gsi_map_base(phys_addr_t gsi_base_addr, u32 gsi_size, enum gsi_ver ver)
 {
+	int ret;
+
 	if (!gsi_ctx) {
 		pr_err("%s:%d gsi context not allocated\n", __func__, __LINE__);
 		return -GSI_STATUS_NODEV;
@@ -1307,7 +1309,12 @@ int gsi_map_base(phys_addr_t gsi_base_addr, u32 gsi_size, enum gsi_ver ver)
 		gsi_size);
 
 	/* initialize HAL before accessing any register */
-	gsihal_init(ver, gsi_ctx->base);
+	ret = gsihal_init(ver, gsi_ctx->base);
+	if (ret) {
+		devm_iounmap(gsi_ctx->dev, gsi_ctx->base);
+		gsi_ctx->base = NULL;
+		return ret;
+	}
 
 	return 0;
 }
@@ -1320,11 +1327,11 @@ int gsi_unmap_base(void)
 		return -GSI_STATUS_NODEV;
 	}
 
-	if (!gsi_ctx->base) {
-		GSIERR("access to GSI HW has not been mapped\n");
-		return -GSI_STATUS_INVALID_PARAMS;
-	}
+	if (!gsi_ctx->base)
+		return 0;
 
+	/* The HAL must not retain a pointer to the released MMIO mapping. */
+	gsihal_destroy();
 	devm_iounmap(gsi_ctx->dev, gsi_ctx->base);
 
 	gsi_ctx->base = NULL;

@@ -11870,7 +11870,8 @@ int ipa3_plat_drv_probe(struct platform_device *pdev_p)
 			smmu_info.use_64_bit_dma_mask = true;
 			if (dma_set_mask_and_coherent(&pdev_p->dev, DMA_BIT_MASK(64))) {
 				IPAERR("DMA set 64bit mask failed\n");
-				return -EOPNOTSUPP;
+				result = -EOPNOTSUPP;
+				goto fail_early_gsi;
 			}
 		}
 		smmu_info.arm_smmu = true;
@@ -11879,12 +11880,14 @@ int ipa3_plat_drv_probe(struct platform_device *pdev_p)
 			"qcom,use-64-bit-dma-mask")) {
 			if (dma_set_mask_and_coherent(&pdev_p->dev, DMA_BIT_MASK(64))) {
 				IPAERR("DMA set 64bit mask failed\n");
-				return -EOPNOTSUPP;
+				result = -EOPNOTSUPP;
+				goto fail_early_gsi;
 			}
 		} else {
 			if (dma_set_mask_and_coherent(&pdev_p->dev, DMA_BIT_MASK(32))) {
 				IPAERR("DMA set 32bit mask failed\n");
-				return -EOPNOTSUPP;
+				result = -EOPNOTSUPP;
+				goto fail_early_gsi;
 			}
 		}
 		/* Below update of pre init for non smmu device, As
@@ -11894,7 +11897,7 @@ int ipa3_plat_drv_probe(struct platform_device *pdev_p)
 		result = ipa3_pre_init(&ipa3_res, pdev_p);
 		if (result) {
 			IPAERR("ipa3_init failed\n");
-			return result;
+			goto fail_early_gsi;
 		}
 		ipa_fw_load_sm_handle_event(IPA_FW_LOAD_EVNT_SMMU_DONE);
 		goto skip_repeat_pre_init;
@@ -11904,7 +11907,7 @@ int ipa3_plat_drv_probe(struct platform_device *pdev_p)
 	result = ipa3_pre_init(&ipa3_res, pdev_p);
 	if (result) {
 		IPAERR("ipa3_init failed\n");
-		return result;
+		goto fail_early_gsi;
 	}
 
 skip_repeat_pre_init:
@@ -11918,6 +11921,10 @@ skip_repeat_pre_init:
 	if (result && result != -EPROBE_DEFER)
 		IPAERR("ipa: ipa_plat_drv_probe failed\n");
 
+	return result;
+
+fail_early_gsi:
+	gsi_unmap_base();
 	return result;
 }
 
